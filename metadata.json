@@ -1,0 +1,8 @@
+{
+  "name": "DOPE WOD",
+  "description": "High-performance training planner and analytics for elite athletes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
