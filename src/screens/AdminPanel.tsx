@@ -9,40 +9,76 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onNavigate }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'requests'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'logs'>('users');
   const [users, setUsers] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+
+  const logError = async (origin: string, message: string) => {
+    const newLog = {
+      id: Date.now().toString(),
+      created_at: new Date().toISOString(),
+      type: 'ERROR',
+      origin,
+      message
+    };
+    setLogs(prev => [newLog, ...prev]);
+    await supabase.from('system_logs').insert([{ type: 'ERROR', origin, message }]);
+  };
 
   const fetchUsers = async () => {
-    const { data, error } = await supabase.from('profiles').select('*').order('full_name');
-    if (!error && data) {
-      setUsers(data);
-    } else {
-      console.error(error);
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').order('full_name');
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (err: any) {
+      console.error(err);
+      logError('DATABASE', `Error obteniendo usuarios: ${err.message}`);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const { data, error } = await supabase.from('system_logs').select('*').order('created_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      if (data) setLogs(data);
+    } catch (err: any) {
+      console.error("Error fetching logs", err);
     }
   };
 
   useEffect(() => {
     fetchUsers();
+    fetchLogs();
   }, []);
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     if (!['athlete', 'coach', 'admin'].includes(newRole)) return;
     
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-    if (!error) {
-       fetchUsers();
-    } else {
-       alert("Error actualizando rol: " + error.message);
+    try {
+      const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+      if (error) throw error;
+      await fetchUsers();
+      
+      // Registrar en log como info (opcional)
+      await supabase.from('system_logs').insert([{ type: 'INFO', origin: 'ADMIN', message: `Rol actualizado a ${newRole} para usuario ${userId}` }]);
+      fetchLogs();
+    } catch (err: any) {
+      alert("Error actualizando rol: " + err.message);
+      logError('ADMIN', `Fallo al actualizar rol: ${err.message}`);
     }
   };
 
   const handleRevokeAccess = async (userId: string) => {
     if (!window.confirm("¿Seguro que deseas revocar el acceso de este usuario? (Se eliminará su perfil operativo).")) return;
-    const { error } = await supabase.from('profiles').delete().eq('id', userId);
-    if (!error) {
-       fetchUsers();
-    } else {
-       alert("Error eliminando perfil: " + error.message);
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', userId);
+      if (error) throw error;
+      fetchUsers();
+      await supabase.from('system_logs').insert([{ type: 'WARNING', origin: 'ADMIN', message: `Acceso revocado para usuario ${userId}` }]);
+      fetchLogs();
+    } catch (err: any) {
+      alert("Error eliminando perfil: " + err.message);
+      logError('ADMIN', `Fallo al revocar acceso: ${err.message}`);
     }
   };
 
@@ -84,6 +120,15 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
              )}
            >
              SOLICITUDES DE SUSCRIPCIÓN
+           </button>
+           <button 
+             onClick={() => setActiveTab('logs')}
+             className={cn(
+               "px-4 sm:px-10 py-4 sm:py-6 font-headline font-black uppercase text-xs sm:text-sm tracking-widest border-b-4 transition-all whitespace-nowrap",
+               activeTab === 'logs' ? "border-amber-500 text-amber-500" : "border-transparent text-white/20 hover:text-amber-500/50"
+             )}
+           >
+             ERROR LOG
            </button>
         </div>
 
@@ -127,11 +172,51 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
                  </table>
               </div>
           </div>
-        ) : (
+        ) : activeTab === 'requests' ? (
           <div className="bg-[#051224]/30 border border-white/5 border-dashed p-10 sm:p-20 flex flex-col items-center justify-center text-center">
              <p className="font-headline text-white/20 text-xs md:text-sm font-black uppercase tracking-[0.3em] sm:tracking-[0.5em] italic">
                No hay solicitudes de suscripción pendientes de confirmación.
              </p>
+          </div>
+        ) : (
+          <div className="bg-[#0c0800] border border-amber-500/30 p-6 sm:p-8 font-mono text-xs sm:text-sm shadow-[0_0_15px_rgba(245,158,11,0.05)]">
+             <div className="flex justify-between items-center mb-6 border-b border-amber-500/20 pb-4">
+               <h2 className="text-amber-500 font-black tracking-widest uppercase text-sm sm:text-base">7. REGISTRO TÉCNICO (ERROR LOG)</h2>
+               <button 
+                 onClick={async () => {
+                   if(window.confirm('¿Borrar historial?')) {
+                     await supabase.from('system_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                     setLogs([]);
+                   }
+                 }}
+                 className="border border-amber-500/50 text-amber-500/80 px-4 py-2 hover:bg-amber-500/10 transition-colors uppercase text-[10px] tracking-widest font-black"
+               >
+                 Limpiar Logs
+               </button>
+             </div>
+             
+             <div className="space-y-4 max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-amber-500/20 pr-4">
+                <div className="grid grid-cols-[100px_120px_1fr] sm:grid-cols-[140px_140px_1fr] gap-4 text-amber-500/50 uppercase tracking-widest text-[9px] font-black border-b border-amber-500/10 pb-2 mb-4">
+                   <span>Timestamp</span>
+                   <span>Tipo Origen</span>
+                   <span>Mensaje</span>
+                </div>
+                {logs.length > 0 ? logs.map((log, idx) => (
+                   <div key={idx} className="grid grid-cols-[100px_120px_1fr] sm:grid-cols-[140px_140px_1fr] gap-4 text-amber-500/80 items-start border-b border-amber-500/5 pb-3">
+                      <span className="whitespace-nowrap text-[10px] sm:text-xs">
+                        {new Date(log.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <span className="whitespace-nowrap text-[10px] sm:text-xs">
+                         <strong className={log.type === 'ERROR' ? 'text-red-500' : 'text-amber-500'}>{log.type}</strong> {log.origin}
+                      </span>
+                      <span className="break-words text-[10px] sm:text-xs">{log.message}</span>
+                   </div>
+                )) : (
+                   <div className="text-amber-500/40 text-center py-10 uppercase tracking-widest font-black text-[10px]">
+                     Sin registros en el sistema.
+                   </div>
+                )}
+             </div>
           </div>
         )}
       </div>
@@ -154,23 +239,60 @@ function AdminCard({ icon, title, count }: { icon: any, title: string, count: st
 }
 
 function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email: string, role: string, onEdit: (newRole: string) => void | Promise<void>, onRevoke: () => void | Promise<void>, key?: any }) {
+  const [selectedRole, setSelectedRole] = useState(role);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Sincronizar el estado local si prop "role" cambia desde afuera
+  useEffect(() => {
+    setSelectedRole(role);
+  }, [role]);
+
+  const isChanged = selectedRole !== role;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    await onEdit(selectedRole);
+    setIsSaving(false);
+  };
+
   return (
     <tr className="hover:bg-white/5 transition-colors group">
        <td className="p-4 sm:p-6 font-black text-2xs sm:text-xs uppercase tracking-widest text-white">{name}</td>
        <td className="p-4 sm:p-6 font-black text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">{email}</td>
-       <td className="p-4 sm:p-6">
+       <td className="p-4 sm:p-6 flex items-center gap-2">
           <select
-            value={role}
-            onChange={(e) => onEdit(e.target.value)}
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            disabled={isSaving}
             className={cn(
               "bg-[#051224] border p-2 text-white font-headline text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer",
-              role === 'admin' ? "border-primary-cyan text-primary-cyan focus:border-primary-cyan" : "border-white/20 text-white/60 focus:border-white/40 hover:border-white/40"
+              selectedRole === 'admin' ? "border-primary-cyan text-primary-cyan focus:border-primary-cyan" : "border-white/20 text-white/60 focus:border-white/40 hover:border-white/40"
             )}
           >
             <option value="athlete">ATHLETE</option>
             <option value="coach">COACH</option>
             <option value="admin">ADMIN</option>
           </select>
+          {isChanged && (
+             <button 
+               onClick={handleSave} 
+               disabled={isSaving}
+               className="p-1.5 sm:p-2 border border-primary-cyan text-primary-cyan hover:bg-primary-cyan hover:text-black transition-colors flex-shrink-0"
+               title="Guardar Cambio"
+             >
+               <Check size={14} className="sm:w-4 sm:h-4" />
+             </button>
+          )}
+          {isChanged && (
+             <button 
+               onClick={() => setSelectedRole(role)} 
+               disabled={isSaving}
+               className="p-1.5 sm:p-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
+               title="Cancelar"
+             >
+               <X size={14} className="sm:w-4 sm:h-4" />
+             </button>
+          )}
        </td>
        <td className="p-4 sm:p-6 text-right space-x-1 sm:space-x-2">
           <button onClick={onRevoke} className="p-1.5 sm:p-2 text-white/20 hover:text-red-500 transition-colors" title="Revocar Accesos">
