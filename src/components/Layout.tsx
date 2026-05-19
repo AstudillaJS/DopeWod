@@ -20,8 +20,11 @@ export function Layout({ children, currentScreen, onNavigate, role, onRoleChange
       {/* TopAppBar */}
       <header className="fixed top-0 left-0 right-0 z-50 h-[80px] bg-primary-navy border-b border-primary-cyan/20 px-4 sm:px-6 flex justify-between items-center bg-surface/90 backdrop-blur-md">
         <div className="flex items-center gap-3 sm:gap-4 cursor-pointer" onClick={() => onNavigate('home')}>
-          <Activity className="text-primary-cyan w-6 h-6 sm:w-8 sm:h-8" />
-          <span className="font-headline font-black text-2xl sm:text-3xl tracking-tighter text-white italic uppercase leading-none">DOPE WOD</span>
+          <img src="/lynx-logo.png" alt="Lynx" className="h-8 sm:h-10 object-contain drop-shadow-md" />
+          <div className="flex flex-col border-l-2 border-white/10 pl-3">
+            <span className="font-headline font-black text-lg sm:text-2xl tracking-tighter text-white italic uppercase leading-none">DOPE WOD</span>
+            <span className="text-lynx-orange text-[7px] sm:text-[9px] font-black tracking-widest uppercase mt-1">System</span>
+          </div>
         </div>
         
         <div className="hidden lg:flex items-center gap-12">
