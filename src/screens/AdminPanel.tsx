@@ -25,12 +25,8 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
     fetchUsers();
   }, []);
 
-  const handleUpdateRole = async (userId: string, currentRole: string) => {
-    const newRole = window.prompt("Ingresa el nuevo rol (athlete, coach, admin):", currentRole);
-    if (!newRole || !['athlete', 'coach', 'admin'].includes(newRole)) {
-      if (newRole !== null) alert("Rol inválido.");
-      return;
-    }
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    if (!['athlete', 'coach', 'admin'].includes(newRole)) return;
     
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
     if (!error) {
@@ -112,14 +108,14 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                        {users.length > 0 ? users.map((user) => (
-                         <UserRow 
-                            key={user.id} 
-                            name={user.full_name || 'Sin Nombre'} 
-                            email={user.email} 
-                            role={user.role} 
-                            onEdit={() => handleUpdateRole(user.id, user.role)}
-                            onRevoke={() => handleRevokeAccess(user.id)}
-                         />
+                           <UserRow 
+                             key={user.id} 
+                             name={user.full_name || 'Sin Nombre'} 
+                             email={user.email} 
+                             role={user.role} 
+                             onEdit={(newRole) => handleUpdateRole(user.id, newRole)}
+                             onRevoke={() => handleRevokeAccess(user.id)}
+                          />
                        )) : (
                          <tr>
                             <td colSpan={4} className="p-6 text-center text-white/20 uppercase font-black tracking-widest text-xs">
@@ -157,23 +153,26 @@ function AdminCard({ icon, title, count }: { icon: any, title: string, count: st
   );
 }
 
-function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email: string, role: string, onEdit: () => void | Promise<void>, onRevoke: () => void | Promise<void>, key?: any }) {
+function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email: string, role: string, onEdit: (newRole: string) => void | Promise<void>, onRevoke: () => void | Promise<void>, key?: any }) {
   return (
     <tr className="hover:bg-white/5 transition-colors group">
        <td className="p-4 sm:p-6 font-black text-2xs sm:text-xs uppercase tracking-widest text-white">{name}</td>
        <td className="p-4 sm:p-6 font-black text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">{email}</td>
        <td className="p-4 sm:p-6">
-          <span className={cn(
-            "text-[8px] sm:text-[9px] font-black tracking-widest border px-2 sm:px-3 py-0.5 sm:py-1 uppercase",
-            role === 'admin' ? "border-primary-cyan text-primary-cyan" : "border-white/20 text-white/40"
-          )}>
-            {role}
-          </span>
+          <select
+            value={role}
+            onChange={(e) => onEdit(e.target.value)}
+            className={cn(
+              "bg-[#051224] border p-2 text-white font-headline text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer",
+              role === 'admin' ? "border-primary-cyan text-primary-cyan focus:border-primary-cyan" : "border-white/20 text-white/60 focus:border-white/40 hover:border-white/40"
+            )}
+          >
+            <option value="athlete">ATHLETE</option>
+            <option value="coach">COACH</option>
+            <option value="admin">ADMIN</option>
+          </select>
        </td>
        <td className="p-4 sm:p-6 text-right space-x-1 sm:space-x-2">
-          <button onClick={onEdit} className="p-1.5 sm:p-2 text-white/20 hover:text-primary-cyan transition-colors" title="Editar Rol">
-             <Settings size={14} className="sm:w-4 sm:h-4" />
-          </button>
           <button onClick={onRevoke} className="p-1.5 sm:p-2 text-white/20 hover:text-red-500 transition-colors" title="Revocar Accesos">
              <UserMinus size={14} className="sm:w-4 sm:h-4" />
           </button>
