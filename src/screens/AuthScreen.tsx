@@ -48,7 +48,7 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-[#051224]">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex flex-col items-center">
-        <img src="/lynx-logo.png" alt="Lynx Consulting" className="h-16 sm:h-20 object-contain drop-shadow-2xl" />
+        <img src="/lynx-logo.png" alt="Lynx Consulting" className="h-16 sm:h-20 object-contain mix-blend-screen" />
       </motion.div>
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-[#0a192f] p-6 sm:p-12 border-l-4 sm:border-l-8 border-lynx-orange shadow-2xl">
         <h2 className="font-outfit text-2xl sm:text-4xl font-black uppercase tracking-tighter mb-6 sm:mb-8 text-white">
