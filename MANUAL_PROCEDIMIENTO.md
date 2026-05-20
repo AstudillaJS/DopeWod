@@ -1,99 +1,138 @@
-# MANUAL DE PROCEDIMIENTO Y FUNCIONAMIENTO
-## SISTEMA: DOPE WOD — GESTIÓN DE ENTRENAMIENTOS Y ATLETAS
-*Última actualización: Mayo 2026*
+# Manual de Procedimiento: Sistema DOPE WOD (Versión de Escritorio)
+
+Este manual documenta el funcionamiento técnico, arquitectura, flujo de desarrollo (GitFlow), proceso de compilación y la guía de instalación y distribución de la aplicación de escritorio **DOPE WOD** para computadoras con Windows.
 
 ---
 
-## 1. INTRODUCCIÓN Y PROPÓSITO
-Este documento detalla el funcionamiento técnico, la arquitectura y los procedimientos clave del ecosistema **DOPE WOD**. Su objetivo es servir como guía operativa para desarrolladores, entrenadores y administradores, asegurando la consistencia del sistema en el tiempo y el cumplimiento de las políticas de versionado y seguridad de datos.
+## 1. Arquitectura y Tecnologías
+
+La aplicación está diseñada como una aplicación de escritorio híbrida utilizando las siguientes tecnologías:
+
+*   **Frontend**: React (Typescript) estructurado mediante componentes modulares.
+*   **Compilador y Bundler**: Vite (configurado para usar rutas relativas `./` para total compatibilidad local).
+*   **Estilos**: Tailwind CSS v4 para diseño responsivo con la paleta de Lynx Consulting.
+*   **Base de Datos y Autenticación**: Supabase (servicios en la nube a los que accede el cliente a través de peticiones seguras HTTPS/WSS).
+*   **Entorno de Escritorio**: Electron (empaqueta la UI de React junto con un runtime de Chromium optimizado).
 
 ---
 
-## 2. ARQUITECTURA GENERAL DEL SISTEMA
-El sistema está construido sobre una arquitectura moderna basada en la nube con desacoplamiento de frontend y backend:
+## 2. Estructura del Proyecto
 
-*   **Frontend**: Aplicación interactiva de una sola página (SPA) desarrollada con **React 18+**, **TypeScript** y **Vite**.
-*   **Alineación Estética**: Utiliza estilos personalizados CSS premium orientados a una estética deportiva de alta gama (tonos oscuros, degradados cian/azul neón, microinteracciones y tipografías de gran peso visual).
-*   **Backend (BaaS)**: **Supabase** (PostgreSQL) para la autenticación, base de datos en tiempo real y almacenamiento seguro de datos.
-*   **Políticas de Acceso (RLS)**: Cada tabla en Supabase está protegida con políticas de nivel de fila para garantizar que los atletas solo puedan ver y editar su propia información, mientras que los coaches y administradores poseen permisos ampliados.
-
----
-
-## 3. MÓDULOS DE APLICACIÓN Y NUEVAS MEJORAS
-
-### A. Buscador de Ejercicios y Soporte "Complex" (Nuevo)
-*   **Ubicación**: `src/components/ExerciseAutocomplete.tsx`
-*   **Descripción**: Permite a los coaches buscar y seleccionar ejercicios individuales o componer complejos olímpicos / gimnásticos interactivos usando el delimitador `+` (ej. `POWER CLEAN + FRONT SQUAT + JERK`).
-*   **Funcionamiento Técnico**:
-    1. El componente recibe el texto y lo divide mediante el carácter `+`.
-    2. Realiza la búsqueda reactiva en la base de datos **únicamente sobre el último segmento que se está escribiendo**, mejorando drásticamente el rendimiento.
-    3. Al seleccionar un ejercicio del dropdown, este **reemplaza solo el fragmento final activo**, manteniendo los ejercicios previos del complejo intactos.
-    4. Formatea la salida de manera automática y limpia, asegurando mayúsculas sostenidas y espacios óptimos (ej. `MOVIMIENTO A + MOVIMIENTO B`).
-
-### B. Módulo Inline de Alta de Ejercicios (Nuevo)
-*   **Ubicación**: `src/components/ExerciseAutocomplete.tsx`
-*   **Descripción**: Proporciona un flujo interactivo para registrar un nuevo ejercicio directamente en caliente si este no existe en la base de datos, evitando salir de la pantalla de planificación.
-*   **Funcionamiento Técnico**:
-    1. Si no hay coincidencias exactas, se habilita la opción `+ ¿No encuentras el ejercicio? Dar de alta nuevo`.
-    2. Al hacer clic, se despliega un formulario inline premium que extrae el nombre ingresado por el usuario y permite categorizarlo de inmediato.
-    3. Al confirmar, el ejercicio se registra en Supabase y se autoselecciona de inmediato en la planificación del bloque correspondiente.
-
-### C. Registro y Visualización de Marcas Personales (PR)
-*   **Ubicación**: `src/screens/AthleteManagement.tsx` y componentes de perfil.
-*   **Descripción**: Permite a los atletas registrar sus mejores marcas por ejercicio, con selectores interactivos de unidad de medida (KG / LBS) y almacenamiento persistente en la tabla `personal_records` en Supabase.
+*   `electron.cjs`: Archivo de configuración principal y punto de entrada para el runtime de Electron (CommonJS).
+*   `vite.config.ts`: Configuración del compilador Vite (con `base: './'`).
+*   `package.json`: Definición de metadatos, scripts y dependencias (incluye dependencias de desarrollo de Electron).
+*   `src/`: Código fuente de la interfaz de usuario en React.
+*   `dist/`: Carpeta que contiene la compilación de producción generada por Vite.
+*   `dist-electron/`: Directorio donde se compila la versión de escritorio portátil de Windows.
+*   `Versiones anteriores/`: Repositorio local de copias de seguridad de las carpetas `dist` compiladas.
 
 ---
 
-## 4. SEGURIDAD Y BASE DE DATOS (POLÍTICAS RLS)
-La base de datos utiliza políticas de seguridad de PostgreSQL para blindar la información de los usuarios. Recientemente se reestructuró esta sección para evitar la recursión infinita en la tabla `profiles`.
+## 3. Metodología de Trabajo: GitFlow
 
-### El problema resuelto (Recursividad RLS)
-Anteriormente, las consultas en la tabla `exercises` verificaban si el usuario era administrador haciendo una consulta a `profiles`. Esta última, al ser consultada, ejecutaba una política de lectura interna (`Coaches can view their own athletes`) que volvía a hacer una consulta a `profiles` para determinar el rol del usuario actual, creando un bucle infinito en PostgreSQL.
+Para realizar cambios de forma ordenada y profesional, se debe seguir estrictamente el flujo de GitFlow:
 
-### La Solución Implementada (Función Security Definer)
-Se implementó una arquitectura basada en funciones de base de datos seguras:
-1.  **Función Auxiliar Segura**: Se creó `public.get_user_role(user_id uuid)` marcada como **`SECURITY DEFINER`**. Esta función se ejecuta con privilegios del creador de la base de datos, lo que le permite saltarse el motor RLS exclusivamente para leer el rol del perfil del usuario, rompiendo la recursividad.
-2.  **Políticas Actualizadas**:
-    *   **`profiles`**: La política `"Coaches can view their own athletes"` ahora consulta de forma limpia y directa el rol mediante `public.get_user_role(auth.uid()) = 'admin'`.
-    *   **`exercises`**: Las políticas de `INSERT`, `UPDATE` y `DELETE` usan esta misma función rápida de rol, permitiendo el alta y edición de ejercicios tanto a usuarios con rol `admin` como `coach`.
+1.  **Desarrollo de Características (`feature/*`)**:
+    *   Toda nueva funcionalidad o cambio de branding se realiza en una rama que parta de `develop`. Ejemplo: `git checkout -b feature/mi-cambio develop`.
+2.  **Integración a Desarrollo**:
+    *   Una vez terminada la característica, se realiza un merge a `develop` sin "fast-forward" para mantener la historia de la característica limpia:
+        ```bash
+        git checkout develop
+        git merge feature/mi-cambio --no-ff -m "Merge branch 'feature/mi-cambio' into develop"
+        ```
+3.  **Proceso de Liberación (`release/*`)**:
+    *   Para crear una nueva versión ejecutable, se crea una rama de release desde `develop`:
+        ```bash
+        git checkout -b release/v1.0.0 develop
+        ```
+    *   Aquí se realizan pruebas, configuraciones del instalador y aumentos de versión en `package.json`.
+    *   Una vez lista la release, se mergea tanto a `main` (producción) como a `develop`:
+        ```bash
+        git checkout main
+        git merge release/v1.0.0 --no-ff -m "Merge branch 'release/v1.0.0' into main"
+        git checkout develop
+        git merge release/v1.0.0 --no-ff -m "Merge branch 'release/v1.0.0' into develop"
+        ```
+    *   Finalmente se borra la rama local: `git branch -d release/v1.0.0`.
 
 ---
 
-## 5. PROCEDIMIENTOS DE MANTENIMIENTO, RESPALDO Y DESPLIEGUE
+## 4. Guía del Desarrollador: Instalación y Ejecución Local
 
-### A. Regla de Oro de Compilación y Respaldo
-Cada vez que se realiza un despliegue y se genera una nueva distribución estática (`dist/`), es **MANDATORIO** respaldar la versión previa para garantizar la reversión inmediata ante contingencias.
-*   **Procedimiento**:
-    1. Antes de compilar, copiar la carpeta `dist` existente dentro de la carpeta `Versiones anteriores` con un sufijo de marca de tiempo (ej: `Versiones anteriores/dist_backup_YYYYMMDD_HHMM`).
-    2. Ejecutar la compilación para generar los nuevos archivos de distribución optimizados.
+### Requisitos Previos
+*   Tener instalado **Node.js** (versión LTS recomendada, 18 o superior).
 
-### B. Comandos de Consola Clave (PowerShell / CMD en Windows)
-> [!NOTE]
-> Debido a las restricciones de ejecución de scripts en la máquina local (políticas de PowerShell), todos los comandos de desarrollo deben ejecutarse llamando directamente a los módulos con sus prefijos estándar.
+### Nota sobre Políticas de Ejecución de Windows PowerShell
+Debido a las restricciones de las políticas de ejecución de scripts en entornos Windows estándar (`SecurityError` en PowerShell), **todos los comandos de npm deben llamarse usando explícitamente CMD** de la siguiente manera:
 
-*   **Verificación Estática de Tipos (TypeScript)**:
-    ```cmd
-    npx tsc --noEmit
+*   **Instalación inicial de dependencias**:
+    ```powershell
+    cmd /c npm install
     ```
-    *Este comando valida la integridad de los tipos de datos en todo el proyecto antes de pasar a producción, garantizando 0 errores de compilación.*
-
-*   **Compilación para Producción (Vite)**:
-    ```cmd
-    cmd /c npm run build
-    ```
-    *Genera la carpeta `dist` con los archivos HTML, CSS y JS optimizados, minificados y listos para subir al servidor de hosting.*
-
-*   **Ejecución del Entorno de Desarrollo Local**:
-    ```cmd
+*   **Iniciar el Servidor de Desarrollo React**:
+    ```powershell
     cmd /c npm run dev
     ```
-    *Levanta el servidor local interactivo para previsualizar cambios en tiempo real.*
+*   **Probar la aplicación en la ventana de Electron (Desarrollo/Local)**:
+    1. Inicia el servidor React (`cmd /c npm run dev`).
+    2. En otra consola de comandos, ejecuta la ventana de Electron:
+       ```powershell
+       cmd /c npm run electron:start
+       ```
 
 ---
 
-## 6. CONSIDERACIONES DE LA BASE DE DATOS
-*   **Restricciones de Categoría y Equipamiento**:
-    Al registrar ejercicios nuevos de forma inline, el sistema restringe y provee de forma estricta los valores de las columnas `category` y `equipment_type` requeridas por Supabase:
-    *   **Categorías permitidas**: `'Weightlifting'`, `'Gymnastics'`, `'Monostructural'`.
-    *   **Equipamiento habitual**: `'Barbell'`, `'Bodyweight'`, `'Dumbbell'`, `'Kettlebell'`, `'Medicine Ball'`, `'Box'`, `'Rope'`, `'Machine'`, etc.
-    *   **Auto-selección**: Al cambiar la categoría, el sistema pre-selecciona automáticamente el equipamiento recomendado (ej. *Weightlifting* -> *Barbell*, *Gymnastics* -> *Bodyweight*) para agilizar el registro y evitar violaciones de restricción NOT NULL en la base de datos.
+## 5. Proceso de Compilación y Regla de Copia de Seguridad
+
+> [!IMPORTANT]
+> **Regla Global de Versiones Anteriores**:
+> Cada vez que vayas a realizar una nueva compilación de producción que reemplace la carpeta `dist`, debes realizar una copia de la carpeta `dist` actual dentro de una subcarpeta con fecha/hora dentro del directorio `Versiones anteriores`.
+
+### Pasos para realizar una build de producción y empaquetar en ZIP:
+
+1.  **Crear el backup del `dist` actual**:
+    Ejecuta el siguiente comando en PowerShell reemplazando la fecha por la actual:
+    ```powershell
+    Copy-Item -Path "dist" -Destination "Versiones anteriores\dist_backup_YYYYMMDD_HHMM" -Recurse -Force
+    ```
+2.  **Compilar el Frontend e Instancias de Electron**:
+    Genera el nuevo código optimizado de React y copia de archivos necesarios ejecutando:
+    ```powershell
+    cmd /c npm run build
+    ```
+3.  **Generar el ejecutable Portable (.exe y recursos)**:
+    Para construir los binarios de Windows (que se ubicarán en `dist-electron/win-unpacked`):
+    ```powershell
+    cmd /c npm run electron:build
+    ```
+    *Nota: Si el comando falla al final del proceso con errores de extracción de 7zip sobre "darwin/libcrypto.dylib" (herramientas macOS de firma digital), puedes ignorarlo, ya que la carpeta de Windows ya fue generada exitosamente antes de esa sección.*
+4.  **Comprimir en archivo ZIP portable**:
+    Comprime el resultado para su distribución masiva ejecutando:
+    ```powershell
+    Compress-Archive -Path "dist-electron\win-unpacked\*" -DestinationPath "dist-electron\DOPE_WOD_win-x64.zip" -Force
+    ```
+
+---
+
+## 6. Guía de Instalación para el Usuario Final (PC Windows de Clientes)
+
+Para distribuir e instalar la aplicación **DOPE WOD** en las computadoras de las PC clientes con sistema operativo Windows, sigue estos sencillos pasos:
+
+### Paso 1: Descargar el paquete
+*   Copia y distribuye a la PC del cliente el archivo comprimido final generado: **`dist-electron/DOPE_WOD_win-x64.zip`**.
+
+### Paso 2: Instalación (Descompresión)
+1.  En la PC del cliente, haz clic derecho sobre el archivo `DOPE_WOD_win-x64.zip`.
+2.  Selecciona **Extraer todo...** y elige una carpeta de destino permanente (por ejemplo: `C:\Program Files\DOPE WOD` o una carpeta dentro de documentos del usuario).
+3.  Haz clic en **Extraer**.
+
+### Paso 3: Crear un acceso directo en el escritorio
+1.  Abre la carpeta descomprimida del cliente.
+2.  Busca el archivo ejecutable llamado **`DOPE WOD.exe`** (que tiene el logotipo de Lynx Consulting).
+3.  Haz clic derecho sobre `DOPE WOD.exe`, selecciona **Enviar a** > **Escritorio (crear acceso directo)**.
+4.  Opcional: Cambia el nombre del acceso directo en el escritorio a simplemente `DOPE WOD`.
+
+### Paso 4: Ejecución y Requisitos de Red
+*   **Ejecución**: El cliente final simplemente debe hacer doble clic en el acceso directo del Escritorio o sobre `DOPE WOD.exe` para abrir la aplicación.
+*   **Dependencias**: **No requiere** instalar Node.js, Python, ni librerías adicionales de programación en las PC de los clientes. El ejecutable portable incluye todo su entorno embebido.
+*   **Conectividad**: Dado que la aplicación consume y sincroniza datos en tiempo real mediante Supabase, la PC donde se ejecute la aplicación **debe disponer de conexión activa a Internet** para permitir el inicio de sesión y el correcto guardado y actualización de los WODs.
