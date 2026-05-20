@@ -130,3 +130,48 @@ Para distribuir e instalar la aplicación **DOPE WOD** en las computadoras de la
 *   **Ejecución**: El cliente final simplemente debe hacer doble clic en el acceso directo del Escritorio o sobre `DOPE WOD.exe` para abrir la aplicación.
 *   **Dependencias**: **No requiere** instalar Node.js, Python, ni librerías adicionales de programación en las PC de los clientes. El ejecutable portable incluye todo su entorno embebido.
 *   **Conectividad**: Dado que la aplicación consume y sincroniza datos en tiempo real mediante Supabase, la PC donde se ejecute la aplicación **debe disponer de conexión activa a Internet** para permitir el inicio de sesión y el correcto guardado y actualización de los WODs.
+
+---
+
+## 7. Guía de Despliegue Web (Hostinger)
+
+El sitio web de DOPE WOD es una SPA (Single Page Application). Para que funcione en Hostinger, se requiere subir los archivos estáticos generados en la carpeta `dist/`.
+
+### Opción A: Despliegue Automático mediante GitHub Actions (Recomendado)
+Hemos configurado un flujo de trabajo de integración y despliegue continuo (CI/CD) en [.github/workflows/deploy.yml](file:///.github/workflows/deploy.yml). Cada vez que subas cambios o fusiones ramas a la rama `main` en tu repositorio de GitHub, la aplicación se compilará y subirá automáticamente a Hostinger.
+
+#### Requisitos de configuración en GitHub:
+1. Obtén las credenciales FTP de tu sitio web desde el panel de control de Hostinger (hPanel > Sitios Web > Administrar > Cuentas FTP).
+2. Ve a tu repositorio en GitHub y navega a **Settings** > **Secrets and variables** > **Actions**.
+3. Añade los siguientes tres secretos obligatorios haciendo clic en **New repository secret**:
+   * `FTP_SERVER`: Dirección del host FTP de Hostinger (ejemplo: `ftp.tudominio.com` o una IP).
+   * `FTP_USERNAME`: Tu usuario de la cuenta FTP en Hostinger (ejemplo: `u123456789.ftp`).
+   * `FTP_PASSWORD`: La contraseña de tu cuenta FTP de Hostinger.
+4. ¡Listo! Al hacer `git push origin main`, GitHub ejecutará el flujo, compilará la aplicación y la desplegará en tu dominio en menos de 2 minutos.
+
+---
+
+### Opción B: Despliegue Manual (Arrastrar y Soltar)
+Si prefieres no usar GitHub o deseas hacer una subida rápida de prueba:
+
+1. **Compilar localmente**:
+   Asegúrate de compilar la versión de producción web ejecutando:
+   ```powershell
+   cmd /c npm run build
+   ```
+   Esto generará la carpeta `dist/` en la raíz de tu proyecto.
+2. **Archivos a Subir**:
+   Debes subir **los archivos y carpetas que están dentro de la carpeta `dist/`**, NO la carpeta `dist` en sí.
+   Los archivos clave que verás dentro son:
+   * `assets/` (Carpeta con los archivos CSS y JS compilados)
+   * `public/` (Archivos públicos)
+   * `index.html` (Punto de entrada de la web)
+   * `lynx-logo.png` (El logotipo)
+   * `.htaccess` (Configuración de redirecciones web - vital para que funcionen las rutas de React en servidores Apache como Hostinger)
+3. **Subir mediante Administrador de Archivos de Hostinger**:
+   * Entra al panel de control de Hostinger (hPanel).
+   * Ve a **Administrador de archivos** > Accede a los archivos de tu dominio.
+   * Entra a la carpeta **`public_html`** (asegúrate de que esté vacía o borra archivos innecesarios como `default.php`).
+   * Arrastra e introduce todo el contenido del directorio local `dist/` dentro de `public_html`.
+   * Verifica ingresando a tu dominio desde un navegador web.
+
