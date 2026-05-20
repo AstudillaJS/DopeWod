@@ -53,7 +53,7 @@
       "public/lynx-logo.png"
     ],
     "win": {
-      "target": "zip",
+      "target": "nsis",
       "icon": "public/lynx-logo.png"
     },
     "nsis": {
