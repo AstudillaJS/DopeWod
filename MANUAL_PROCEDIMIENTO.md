@@ -100,16 +100,10 @@ Debido a las restricciones de las políticas de ejecución de scripts en entorno
     ```powershell
     cmd /c npm run build
     ```
-3.  **Generar el ejecutable Portable (.exe y recursos)**:
-    Para construir los binarios de Windows (que se ubicarán en `dist-electron/win-unpacked`):
+3.  **Generar el ejecutable Portable y comprimir en ZIP**:
+    Para construir los binarios de Windows y el archivo ZIP de distribución (que se ubicarán en `dist-electron`):
     ```powershell
     cmd /c npm run electron:build
-    ```
-    *Nota: Si el comando falla al final del proceso con errores de extracción de 7zip sobre "darwin/libcrypto.dylib" (herramientas macOS de firma digital), puedes ignorarlo, ya que la carpeta de Windows ya fue generada exitosamente antes de esa sección.*
-4.  **Comprimir en archivo ZIP portable**:
-    Comprime el resultado para su distribución masiva ejecutando:
-    ```powershell
-    Compress-Archive -Path "dist-electron\win-unpacked\*" -DestinationPath "dist-electron\DOPE_WOD_win-x64.zip" -Force
     ```
 
 ---
@@ -119,10 +113,10 @@ Debido a las restricciones de las políticas de ejecución de scripts en entorno
 Para distribuir e instalar la aplicación **DOPE WOD** en las computadoras de las PC clientes con sistema operativo Windows, sigue estos sencillos pasos:
 
 ### Paso 1: Descargar el paquete
-*   Copia y distribuye a la PC del cliente el archivo comprimido final generado: **`dist-electron/DOPE_WOD_win-x64.zip`**.
+*   Copia y distribuye a la PC del cliente el archivo comprimido final generado: **`dist-electron/DOPE WOD-0.0.0-win.zip`**.
 
 ### Paso 2: Instalación (Descompresión)
-1.  En la PC del cliente, haz clic derecho sobre el archivo `DOPE_WOD_win-x64.zip`.
+1.  En la PC del cliente, haz clic derecho sobre el archivo `DOPE WOD-0.0.0-win.zip`.
 2.  Selecciona **Extraer todo...** y elige una carpeta de destino permanente (por ejemplo: `C:\Program Files\DOPE WOD` o una carpeta dentro de documentos del usuario).
 3.  Haz clic en **Extraer**.
 
