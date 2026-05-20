@@ -46,8 +46,11 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 bg-[#051224]">
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-[#0a192f] p-6 sm:p-12 border-l-4 sm:border-l-8 border-primary-cyan">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-[#051224]">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex flex-col items-center">
+        <img src="/lynx-logo.png" alt="Lynx Consulting" className="h-20 sm:h-28 object-contain rounded-lg drop-shadow-2xl" />
+      </motion.div>
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-[#0a192f] p-6 sm:p-12 border-l-4 sm:border-l-8 border-lynx-orange shadow-2xl">
         <h2 className="font-outfit text-2xl sm:text-4xl font-black uppercase tracking-tighter mb-6 sm:mb-8 text-white">
           {isLogin ? 'INICIAR SESIÓN' : 'REGISTRO DE USUARIO'}
         </h2>
@@ -55,22 +58,22 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
           {!isLogin && (
             <>
               <div>
-                <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-primary-cyan mb-1.5 sm:mb-2 block">Nombre Completo</label>
-                <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-primary-cyan outline-none transition-all uppercase" />
+                <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-lynx-orange mb-1.5 sm:mb-2 block">Nombre Completo</label>
+                <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-lynx-orange outline-none transition-all uppercase" />
               </div>
               <div>
-                <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-primary-cyan mb-1.5 sm:mb-2 block">DNI</label>
-                <input required type="text" value={dni} onChange={e => setDni(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-primary-cyan outline-none transition-all" />
+                <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-lynx-orange mb-1.5 sm:mb-2 block">DNI</label>
+                <input required type="text" value={dni} onChange={e => setDni(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-lynx-orange outline-none transition-all" />
               </div>
             </>
           )}
           <div>
-            <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-primary-cyan mb-1.5 sm:mb-2 block">Email</label>
-            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-primary-cyan outline-none transition-all" />
+            <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-lynx-orange mb-1.5 sm:mb-2 block">Email</label>
+            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-lynx-orange outline-none transition-all" />
           </div>
           <div>
-            <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-primary-cyan mb-1.5 sm:mb-2 block">Contraseña</label>
-            <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-primary-cyan outline-none transition-all" />
+            <label className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-lynx-orange mb-1.5 sm:mb-2 block">Contraseña</label>
+            <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#051224] border border-white/10 p-3 sm:p-4 text-white font-outfit text-base sm:text-xl focus:border-lynx-orange outline-none transition-all" />
           </div>
           {error && (
             <div className="p-3 sm:p-4 bg-red-500/10 border-l-4 border-red-500">
@@ -82,7 +85,7 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
               <p className="text-[9px] sm:text-[10px] uppercase font-black tracking-tighter text-green-500">{successMsg}</p>
             </div>
           )}
-          <button type="submit" disabled={loading} className="w-full bg-primary-cyan text-black font-outfit font-black py-3 sm:py-4 tracking-widest uppercase hover:bg-primary-cyan/90 transition-all text-xs sm:text-sm">
+          <button type="submit" disabled={loading} className="w-full bg-lynx-orange text-white font-outfit font-black py-3 sm:py-4 tracking-widest uppercase hover:bg-lynx-orange/90 transition-all text-xs sm:text-sm">
             {loading ? 'Procesando...' : isLogin ? 'Entrar' : 'Registrar'}
           </button>
         </form>
