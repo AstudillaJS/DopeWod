@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { auth, db } from '../lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,29 +19,31 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
-    
+
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await signInWithEmailAndPassword(auth, email, password);
         onAuthSuccess();
       } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName, dni: dni, role: 'athlete' }
-          }
+        const { user } = await createUserWithEmailAndPassword(auth, email, password);
+        // Create profile document in Firestore
+        await setDoc(doc(db, 'profiles', user.uid), {
+          id: user.uid,
+          email: user.email,
+          full_name: fullName,
+          dni: dni,
+          role: 'athlete',
+          program_id: null,
+          group_id: 'A',
+          updated_at: new Date().toISOString(),
         });
-        if (error) throw error;
-        if (data.user && !data.session) {
-            setSuccessMsg('REVISA TU EMAIL PARA VALIDAR TU CUENTA.');
-        } else {
-            onAuthSuccess();
-        }
+        onAuthSuccess();
       }
     } catch (err: any) {
-      setError(err.message.toUpperCase());
+      const msg = err.code
+        ? err.code.replace('auth/', '').replace(/-/g, ' ').toUpperCase()
+        : err.message?.toUpperCase() || 'ERROR DESCONOCIDO';
+      setError(msg);
     } finally {
       setLoading(false);
     }

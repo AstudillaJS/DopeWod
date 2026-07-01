@@ -17,11 +17,13 @@ import { PlannerEditor } from './screens/PlannerEditor';
 import { AthleteManagement } from './screens/AthleteManagement';
 import { AdminPanel } from './screens/AdminPanel';
 import { AuthScreen } from './screens/AuthScreen';
-import { supabase } from './lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import { ProfileConfig } from './screens/ProfileConfig';
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 export type UserRole = 'athlete' | 'coach' | 'admin';
-export type Screen = 'home' | 'analytics' | 'archive' | 'control' | 'timer-active' | 'timer-config' | 'protocol-detail' | 'planner-editor' | 'athletes' | 'admin-panel';
+export type Screen = 'home' | 'analytics' | 'archive' | 'control' | 'timer-active' | 'timer-config' | 'protocol-detail' | 'planner-editor' | 'athletes' | 'admin-panel' | 'profile-config';
 
 export interface PRRecord {
   id: string;
@@ -31,8 +33,8 @@ export interface PRRecord {
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
-  
+  const [firebaseUser, setFirebaseUser] = useState<User | null | undefined>(undefined); // undefined = loading
+
   // Persist screen to avoid resetting to 'home' when alt-tabbing or HMR triggers
   const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
     return (sessionStorage.getItem('currentScreen') as Screen) || 'home';
@@ -48,44 +50,50 @@ export default function App() {
     sessionStorage.setItem('currentScreen', currentScreen);
   }, [currentScreen]);
 
-  const fetchProfile = async (userId: string, user: any) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data && !error) {
-      const userRole = data.role as UserRole || 'athlete';
-      setRole(userRole);
-      setDbRole(userRole);
-      setProgramId(data.program_id || null);
-      setUserName(data.full_name || user.user_metadata?.full_name || 'USUARIO');
-    } else if (user.email === 'astudillajuansimon@hotmail.com.ar') {
-      setRole('admin');
-      setDbRole('admin');
-      setProgramId(null);
-      setUserName(user.user_metadata?.full_name || 'JUAN SIMON');
-    } else {
-      const userRole = (user.user_metadata?.role as UserRole) || 'athlete';
-      setRole(userRole);
-      setDbRole(userRole);
-      setProgramId(null);
-      setUserName(user.user_metadata?.full_name || 'USUARIO');
+  const fetchProfile = async (user: User) => {
+    try {
+      const profileRef = doc(db, 'profiles', user.uid);
+      const profileSnap = await getDoc(profileRef);
+
+      if (profileSnap.exists()) {
+        const data = profileSnap.data();
+        const userRole = data.role as UserRole || 'athlete';
+        setRole(userRole);
+        setDbRole(userRole);
+        setProgramId(data.program_id || null);
+        setUserName(data.full_name || user.displayName || 'USUARIO');
+      } else {
+        // No profile doc yet — use email fallback for admin
+        if (user.email === 'astudillajuansimon@hotmail.com.ar') {
+          setRole('admin');
+          setDbRole('admin');
+          setProgramId(null);
+          setUserName(user.displayName || 'JUAN SIMON');
+        } else {
+          setRole('athlete');
+          setDbRole('athlete');
+          setProgramId(null);
+          setUserName(user.displayName || 'USUARIO');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        fetchProfile(session.user.id, session.user);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        fetchProfile(user);
+      } else {
+        setRole('athlete');
+        setDbRole('athlete');
+        setProgramId(null);
+        setUserName('');
       }
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        fetchProfile(session.user.id, session.user);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const addPR = (pr: Omit<PRRecord, 'id'>) => {
@@ -93,7 +101,16 @@ export default function App() {
     setPrs(prev => [newPR, ...prev]);
   };
 
-  if (!session) {
+  // Still loading Firebase auth state
+  if (firebaseUser === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#051224]">
+        <div className="text-primary-cyan animate-spin text-4xl">⟳</div>
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
     return <AuthScreen onAuthSuccess={() => setCurrentScreen('home')} />;
   }
 
@@ -121,16 +138,18 @@ export default function App() {
         return <ProtocolDetail onNavigate={setCurrentScreen} prs={prs} />;
       case 'admin-panel':
         return <AdminPanel onNavigate={setCurrentScreen} />;
+      case 'profile-config':
+        return <ProfileConfig onNavigate={setCurrentScreen} role={role} />;
       default:
         return <Dashboard onNavigate={setCurrentScreen} role={role} userName={userName} hasPlanning={hasPlanning} />;
     }
   };
 
   return (
-    <Layout 
-      currentScreen={currentScreen} 
-      onNavigate={setCurrentScreen} 
-      role={role} 
+    <Layout
+      currentScreen={currentScreen}
+      onNavigate={setCurrentScreen}
+      role={role}
       onRoleChange={setRole}
       dbRole={dbRole}
       hasPlanning={hasPlanning}

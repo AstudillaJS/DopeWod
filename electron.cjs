@@ -39,6 +39,10 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     createWindow();
 
+    // Check for updates automatically
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.checkForUpdatesAndNotify();
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();

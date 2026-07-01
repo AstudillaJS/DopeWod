@@ -2,16 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { type Screen } from '../App';
 import { Shield, Settings, UserCheck, Key, UserMinus, Check, X } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, limit, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 
 interface AdminPanelProps {
   onNavigate: (screen: Screen) => void;
 }
 
 export function AdminPanel({ onNavigate }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'logs' | 'programs'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [newProgramName, setNewProgramName] = useState('');
+  const [newProgramDesc, setNewProgramDesc] = useState('');
+  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const [editProgramName, setEditProgramName] = useState('');
+  const [editProgramDesc, setEditProgramDesc] = useState('');
 
   const logError = async (origin: string, message: string) => {
     const newLog = {
@@ -22,14 +29,14 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
       message
     };
     setLogs(prev => [newLog, ...prev]);
-    await supabase.from('system_logs').insert([{ type: 'ERROR', origin, message }]);
+    await addDoc(collection(db, 'system_logs'), { type: 'ERROR', origin, message, created_at: new Date().toISOString() });
   };
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase.from('profiles').select('*').order('full_name');
-      if (error) throw error;
-      setUsers(data || []);
+      const q = query(collection(db, 'profiles'), orderBy('full_name'));
+      const snap = await getDocs(q);
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err: any) {
       console.error(err);
       logError('DATABASE', `Error obteniendo usuarios: ${err.message}`);
@@ -38,43 +45,97 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
 
   const fetchLogs = async () => {
     try {
-      const { data, error } = await supabase.from('system_logs').select('*').order('created_at', { ascending: false }).limit(50);
-      if (error) throw error;
-      if (data) setLogs(data);
+      const q = query(collection(db, 'system_logs'), orderBy('created_at', 'desc'), limit(50));
+      const snap = await getDocs(q);
+      setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err: any) {
-      console.error("Error fetching logs", err);
+      console.error('Error fetching logs', err);
+    }
+  };
+
+  const fetchPrograms = async () => {
+    try {
+      const q = query(collection(db, 'programs'), orderBy('name'));
+      const snap = await getDocs(q);
+      setPrograms(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err: any) {
+      console.error('Error fetching programs', err);
     }
   };
 
   useEffect(() => {
     fetchUsers();
     fetchLogs();
+    fetchPrograms();
   }, []);
 
-  const handleUpdateRole = async (userId: string, newRole: string) => {
+  const handleUpdateUser = async (userId: string, newRole: string, newProgramId: string | null) => {
     if (!['athlete', 'coach', 'admin'].includes(newRole)) return;
-    
     try {
-      const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-      if (error) throw error;
+      await updateDoc(doc(db, 'profiles', userId), { role: newRole, program_id: newProgramId || null });
       await fetchUsers();
-      
-      // Registrar en log como info (opcional)
-      await supabase.from('system_logs').insert([{ type: 'INFO', origin: 'ADMIN', message: `Rol actualizado a ${newRole} para usuario ${userId}` }]);
+      await addDoc(collection(db, 'system_logs'), { type: 'INFO', origin: 'ADMIN', message: `Rol actualizado a ${newRole} para usuario ${userId}`, created_at: new Date().toISOString() });
       fetchLogs();
     } catch (err: any) {
-      alert("Error actualizando rol: " + err.message);
-      logError('ADMIN', `Fallo al actualizar rol: ${err.message}`);
+      alert("Error actualizando usuario: " + err.message);
+      logError('ADMIN', `Fallo al actualizar usuario: ${err.message}`);
+    }
+  };
+
+  const handleCreateProgram = async () => {
+    if (!newProgramName.trim()) return;
+    try {
+      await addDoc(collection(db, 'programs'), {
+        name: newProgramName.trim().toUpperCase(),
+        description: newProgramDesc.trim()
+      });
+      setNewProgramName('');
+      setNewProgramDesc('');
+      fetchPrograms();
+      await addDoc(collection(db, 'system_logs'), { type: 'INFO', origin: 'ADMIN', message: `Programa Creado: ${newProgramName}`, created_at: new Date().toISOString() });
+      fetchLogs();
+    } catch (err: any) {
+      alert("Error creando programa: " + err.message);
+      logError('ADMIN', `Fallo al crear programa: ${err.message}`);
+    }
+  };
+
+  const handleUpdateProgram = async (id: string) => {
+    if (!editProgramName.trim()) return;
+    try {
+      await updateDoc(doc(db, 'programs', id), {
+        name: editProgramName.trim().toUpperCase(),
+        description: editProgramDesc.trim()
+      });
+      setEditingProgramId(null);
+      fetchPrograms();
+      await addDoc(collection(db, 'system_logs'), { type: 'INFO', origin: 'ADMIN', message: `Programa Actualizado: ${editProgramName}`, created_at: new Date().toISOString() });
+      fetchLogs();
+    } catch (err: any) {
+      alert("Error actualizando programa: " + err.message);
+      logError('ADMIN', `Fallo al actualizar programa: ${err.message}`);
+    }
+  };
+
+  const handleDeleteProgram = async (id: string, name: string) => {
+    if (!window.confirm(`¿Seguro que deseas eliminar el programa ${name}? Esto dejará sin programa a los usuarios asignados.`)) return;
+    try {
+      await deleteDoc(doc(db, 'programs', id));
+      fetchPrograms();
+      await addDoc(collection(db, 'system_logs'), { type: 'WARNING', origin: 'ADMIN', message: `Programa Eliminado: ${name}`, created_at: new Date().toISOString() });
+      fetchLogs();
+    } catch (err: any) {
+      alert("Error eliminando programa: " + err.message);
+      logError('ADMIN', `Fallo al eliminar programa: ${err.message}`);
     }
   };
 
   const handleRevokeAccess = async (userId: string) => {
     if (!window.confirm("¿Seguro que deseas revocar el acceso de este usuario? (Se eliminará su perfil operativo).")) return;
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', userId);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'profiles', userId));
       fetchUsers();
-      await supabase.from('system_logs').insert([{ type: 'WARNING', origin: 'ADMIN', message: `Acceso revocado para usuario ${userId}` }]);
+      await addDoc(collection(db, 'system_logs'), { type: 'WARNING', origin: 'ADMIN', message: `Acceso revocado para usuario ${userId}`, created_at: new Date().toISOString() });
       fetchLogs();
     } catch (err: any) {
       alert("Error eliminando perfil: " + err.message);
@@ -111,6 +172,15 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
              )}
            >
              GESTIÓN DE ROLES
+           </button>
+           <button 
+             onClick={() => setActiveTab('programs')}
+             className={cn(
+               "px-4 sm:px-10 py-4 sm:py-6 font-headline font-black uppercase text-xs sm:text-sm tracking-widest border-b-4 transition-all whitespace-nowrap",
+               activeTab === 'programs' ? "border-primary-cyan text-white" : "border-transparent text-white/20 hover:text-white"
+             )}
+           >
+             PROGRAMAS
            </button>
            <button 
              onClick={() => setActiveTab('requests')}
@@ -158,7 +228,9 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
                              name={user.full_name || 'Sin Nombre'} 
                              email={user.email} 
                              role={user.role} 
-                             onEdit={(newRole) => handleUpdateRole(user.id, newRole)}
+                             programId={user.program_id}
+                             programs={programs}
+                             onEdit={(newRole, newProgramId) => handleUpdateUser(user.id, newRole, newProgramId)}
                              onRevoke={() => handleRevokeAccess(user.id)}
                           />
                        )) : (
@@ -171,6 +243,91 @@ export function AdminPanel({ onNavigate }: AdminPanelProps) {
                     </tbody>
                  </table>
               </div>
+          </div>
+        ) : activeTab === 'programs' ? (
+          <div className="space-y-8">
+            <div className="bg-[#051224] border border-white/5 p-6 sm:p-8">
+              <h2 className="text-white font-black tracking-widest uppercase text-sm mb-6">NUEVO PROGRAMA</h2>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <input 
+                  type="text" 
+                  value={newProgramName}
+                  onChange={e => setNewProgramName(e.target.value)}
+                  placeholder="NOMBRE (EJ. CROSSFIT AVANZADO)" 
+                  className="bg-black/40 border border-white/10 p-4 text-white font-headline text-xs font-black uppercase tracking-widest outline-none focus:border-primary-cyan flex-grow"
+                />
+                <input 
+                  type="text" 
+                  value={newProgramDesc}
+                  onChange={e => setNewProgramDesc(e.target.value)}
+                  placeholder="DESCRIPCIÓN BREVE" 
+                  className="bg-black/40 border border-white/10 p-4 text-white font-headline text-xs font-black uppercase tracking-widest outline-none focus:border-primary-cyan flex-grow"
+                />
+                <button 
+                  onClick={handleCreateProgram}
+                  disabled={!newProgramName.trim()}
+                  className="bg-primary-cyan text-black font-black uppercase text-xs tracking-widest px-8 py-4 disabled:opacity-50 hover:bg-white transition-colors"
+                >
+                  CREAR
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {programs.map(prog => (
+                <div key={prog.id} className="bg-[#051224] p-6 border border-white/5 flex flex-col items-center justify-center text-center relative group">
+                   {editingProgramId === prog.id ? (
+                     <div className="flex flex-col gap-3 w-full">
+                        <input 
+                          type="text" 
+                          value={editProgramName}
+                          onChange={e => setEditProgramName(e.target.value)}
+                          className="bg-black/40 border border-white/10 p-2 text-white font-headline text-xs font-black uppercase tracking-widest outline-none focus:border-primary-cyan w-full text-center"
+                        />
+                        <input 
+                          type="text" 
+                          value={editProgramDesc}
+                          onChange={e => setEditProgramDesc(e.target.value)}
+                          className="bg-black/40 border border-white/10 p-2 text-white font-headline text-xs font-black uppercase tracking-widest outline-none focus:border-primary-cyan w-full text-center"
+                        />
+                        <div className="flex justify-center gap-2 mt-2">
+                           <button onClick={() => handleUpdateProgram(prog.id)} className="p-2 border border-primary-cyan text-primary-cyan hover:bg-primary-cyan hover:text-black">
+                              <Check size={14} />
+                           </button>
+                           <button onClick={() => setEditingProgramId(null)} className="p-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white">
+                              <X size={14} />
+                           </button>
+                        </div>
+                     </div>
+                   ) : (
+                     <>
+                       <h3 className="text-white font-black uppercase tracking-widest text-lg mb-2">{prog.name}</h3>
+                       <p className="text-white/40 text-[10px] tracking-widest uppercase">{prog.description || 'SIN DESCRIPCIÓN'}</p>
+                       
+                       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                          <button 
+                            onClick={() => {
+                               setEditingProgramId(prog.id);
+                               setEditProgramName(prog.name);
+                               setEditProgramDesc(prog.description || '');
+                            }}
+                            className="p-1.5 bg-black/40 text-white/40 hover:text-primary-cyan border border-white/5 hover:border-primary-cyan"
+                            title="Editar Programa"
+                          >
+                             <Settings size={12} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProgram(prog.id, prog.name)}
+                            className="p-1.5 bg-black/40 text-white/40 hover:text-red-500 border border-white/5 hover:border-red-500"
+                            title="Eliminar Programa"
+                          >
+                             <UserMinus size={12} />
+                          </button>
+                       </div>
+                     </>
+                   )}
+                </div>
+              ))}
+            </div>
           </div>
         ) : activeTab === 'requests' ? (
           <div className="bg-[#051224]/30 border border-white/5 border-dashed p-10 sm:p-20 flex flex-col items-center justify-center text-center">
@@ -238,20 +395,22 @@ function AdminCard({ icon, title, count }: { icon: any, title: string, count: st
   );
 }
 
-function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email: string, role: string, onEdit: (newRole: string) => void | Promise<void>, onRevoke: () => void | Promise<void>, key?: any }) {
+function UserRow({ name, email, role, programId, programs, onEdit, onRevoke }: { name: string, email: string, role: string, programId?: string, programs: any[], onEdit: (newRole: string, newProgramId: string | null) => void | Promise<void>, onRevoke: () => void | Promise<void>, key?: any }) {
   const [selectedRole, setSelectedRole] = useState(role);
+  const [selectedProgram, setSelectedProgram] = useState(programId || '');
   const [isSaving, setIsSaving] = useState(false);
   
-  // Sincronizar el estado local si prop "role" cambia desde afuera
+  // Sincronizar el estado local si prop "role" o "programId" cambia desde afuera
   useEffect(() => {
     setSelectedRole(role);
-  }, [role]);
+    setSelectedProgram(programId || '');
+  }, [role, programId]);
 
-  const isChanged = selectedRole !== role;
+  const isChanged = selectedRole !== role || selectedProgram !== (programId || '');
 
   const handleSave = async () => {
     setIsSaving(true);
-    await onEdit(selectedRole);
+    await onEdit(selectedRole, selectedProgram || null);
     setIsSaving(false);
   };
 
@@ -259,7 +418,7 @@ function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email:
     <tr className="hover:bg-white/5 transition-colors group">
        <td className="p-4 sm:p-6 font-black text-2xs sm:text-xs uppercase tracking-widest text-white">{name}</td>
        <td className="p-4 sm:p-6 font-black text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">{email}</td>
-       <td className="p-4 sm:p-6 flex items-center gap-2">
+       <td className="p-4 sm:p-6 flex items-center gap-2 flex-wrap">
           <select
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value)}
@@ -273,6 +432,21 @@ function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email:
             <option value="coach">COACH</option>
             <option value="admin">ADMIN</option>
           </select>
+          
+          {selectedRole === 'coach' && (
+            <select
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+              disabled={isSaving}
+              className="bg-[#051224] border border-white/20 p-2 text-white/60 font-headline text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer focus:border-white/40 hover:border-white/40"
+            >
+              <option value="">-- SIN PROGRAMA --</option>
+              {programs.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
+
           {isChanged && (
              <button 
                onClick={handleSave} 
@@ -285,7 +459,10 @@ function UserRow({ name, email, role, onEdit, onRevoke }: { name: string, email:
           )}
           {isChanged && (
              <button 
-               onClick={() => setSelectedRole(role)} 
+               onClick={() => {
+                 setSelectedRole(role);
+                 setSelectedProgram(programId || '');
+               }} 
                disabled={isSaving}
                className="p-1.5 sm:p-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
                title="Cancelar"

@@ -2,7 +2,8 @@ import { type Screen, type UserRole } from '../App';
 import { Target, Dumbbell, Timer, History, User, Activity, Edit3, Users, Settings, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { signOut } from 'firebase/auth';
 
 interface LayoutProps {
   children: ReactNode;
@@ -70,17 +71,17 @@ export function Layout({ children, currentScreen, onNavigate, role, onRoleChange
            
            <div className="flex items-center gap-2">
              <div 
-               onClick={() => role === 'admin' && onNavigate('admin-panel')}
+               onClick={() => onNavigate('profile-config')}
                className={cn(
                  "w-10 h-10 border border-white/20 flex items-center justify-center p-2 group cursor-pointer hover:border-primary-cyan transition-colors",
-                 currentScreen === 'admin-panel' && "border-primary-cyan"
+                 currentScreen === 'profile-config' && "border-primary-cyan"
                )}
-               title="Admin Panel"
+               title="Mi Perfil"
              >
-                <User size={20} className={cn("text-white group-hover:text-primary-cyan", currentScreen === 'admin-panel' && "text-primary-cyan")} />
+                <User size={20} className={cn("text-white group-hover:text-primary-cyan", currentScreen === 'profile-config' && "text-primary-cyan")} />
              </div>
              <div 
-               onClick={() => supabase.auth.signOut()}
+               onClick={() => signOut(auth)}
                className="w-10 h-10 border border-white/20 flex items-center justify-center p-2 group cursor-pointer hover:border-red-500 transition-colors"
                title="Cerrar Sesión"
              >
@@ -91,10 +92,10 @@ export function Layout({ children, currentScreen, onNavigate, role, onRoleChange
         
         {/* Mobile Profile Only */}
         <div className="lg:hidden flex items-center gap-2">
-           <div onClick={() => role === 'admin' && onNavigate('admin-panel')} className="w-9 h-9 border border-white/20 flex items-center justify-center p-2">
+           <div onClick={() => onNavigate('profile-config')} className="w-9 h-9 border border-white/20 flex items-center justify-center p-2">
               <User size={18} className="text-white" />
            </div>
-           <div onClick={() => supabase.auth.signOut()} className="w-9 h-9 border border-white/20 flex items-center justify-center p-2 text-red-500">
+           <div onClick={() => signOut(auth)} className="w-9 h-9 border border-white/20 flex items-center justify-center p-2 text-red-500">
               <LogOut size={18} />
            </div>
         </div>

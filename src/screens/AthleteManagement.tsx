@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { type Screen } from '../App';
 import { Users, Search, UserPlus, Loader2, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 interface AthleteManagementProps {
   onNavigate: (screen: Screen) => void;
@@ -20,16 +21,32 @@ export function AthleteManagement({ onNavigate, dbRole, programId }: AthleteMana
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: progData } = await supabase.from('programs').select('*').order('name');
-      if (progData) setPrograms(progData);
+      const progSnap = await getDocs(query(collection(db, 'programs'), orderBy('name')));
+      const allPrograms = progSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      let query = supabase.from('profiles').select('*').eq('role', 'athlete').order('full_name');
-      if (dbRole === 'coach' && programId) {
-        query = query.eq('program_id', programId);
+      if (dbRole === 'coach') {
+        if (!programId) {
+          setPrograms([]);
+          setAthletes([]);
+          return;
+        }
+        setPrograms(allPrograms.filter(p => p.id === programId));
+        const athSnap = await getDocs(query(
+          collection(db, 'profiles'),
+          where('role', '==', 'athlete'),
+          where('program_id', '==', programId),
+          orderBy('full_name')
+        ));
+        setAthletes(athSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        setPrograms(allPrograms);
+        const athSnap = await getDocs(query(
+          collection(db, 'profiles'),
+          where('role', '==', 'athlete'),
+          orderBy('full_name')
+        ));
+        setAthletes(athSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
-      
-      const { data: athData } = await query;
-      if (athData) setAthletes(athData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -37,17 +54,13 @@ export function AthleteManagement({ onNavigate, dbRole, programId }: AthleteMana
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [dbRole, programId]);
-
   const handleUpdateAthlete = async (id: string, field: string, value: string | null) => {
     setSavingId(id);
-    const { error } = await supabase.from('profiles').update({ [field]: value }).eq('id', id);
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'profiles', id), { [field]: value });
       setAthletes(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
-    } else {
-      alert("Error actualizando atleta: " + error.message);
+    } catch (err: any) {
+      alert("Error actualizando atleta: " + err.message);
     }
     setSavingId(null);
   };

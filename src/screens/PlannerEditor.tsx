@@ -4,7 +4,8 @@ import { cn } from '../lib/utils';
 import { useState, useEffect } from 'react';
 import { ExerciseAutocomplete } from '../components/ExerciseAutocomplete';
 import { CustomSelect } from '../components/CustomSelect';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 
 export type WodType = 'ESTRUCTURA / FUERZA' | 'FOR TIME' | 'AMRAP' | 'EMOM' | 'TABATA' | 'COMPLEX' | 'OTRO';
 export type ImplementType = 'BARRA' | 'DB / KB' | 'BODYWEIGHT / GYM';
@@ -109,25 +110,27 @@ export function PlannerEditor({ onNavigate, dbRole, programId }: PlannerEditorPr
   useEffect(() => {
     const fetchPrograms = async () => {
       try {
-        const { data, error } = await supabase
-          .from('programs')
-          .select('*')
-          .order('name', { ascending: true });
-        
-        if (data && !error) {
-          if (dbRole === 'coach' && programId) {
-             const coachProgram = data.filter(p => p.id === programId);
-             setPrograms(coachProgram.length > 0 ? coachProgram : data);
-             if (coachProgram.length > 0) {
-               setSelectedProgramId(programId);
-             } else if (data.length > 0) {
-               setSelectedProgramId(data[0].id);
-             }
+        const q = query(collection(db, 'programs'), orderBy('name'));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Program[];
+
+        if (dbRole === 'coach') {
+          if (programId) {
+            const coachProgram = data.filter(p => p.id === programId);
+            setPrograms(coachProgram);
+            if (coachProgram.length > 0) {
+              setSelectedProgramId(programId);
+            } else {
+              setSelectedProgramId('');
+            }
           } else {
-             setPrograms(data);
-             if (data.length > 0) {
-               setSelectedProgramId(data[0].id);
-             }
+            setPrograms([]);
+            setSelectedProgramId('');
+          }
+        } else {
+          setPrograms(data);
+          if (data.length > 0) {
+            setSelectedProgramId(data[0].id);
           }
         }
       } catch (err) {
@@ -145,22 +148,16 @@ export function PlannerEditor({ onNavigate, dbRole, programId }: PlannerEditorPr
       setLoading(true);
       setMessage(null);
       try {
-        const { data, error } = await supabase
-          .from('weekly_plans')
-          .select('*')
-          .eq('program_id', selectedProgramId)
-          .eq('group_id', selectedGroupId)
-          .eq('week_number', weekNumber)
-          .eq('day_code', selectedDay)
-          .maybeSingle();
+        // Composite document ID: programId_groupId_weekNumber_dayCode
+        const planId = `${selectedProgramId}_${selectedGroupId}_${weekNumber}_${selectedDay}`;
+        const planRef = doc(db, 'weekly_plans', planId);
+        const planSnap = await getDoc(planRef);
 
-        if (error) {
-          console.error('Error fetching plan:', error);
-        } else if (data) {
+        if (planSnap.exists()) {
+          const data = planSnap.data();
           setSessionTitle(data.title || '');
           setBlocks(data.exercises || []);
         } else {
-          // Reset to clean states if no record is found
           setSessionTitle('');
           setBlocks([]);
         }
@@ -184,27 +181,20 @@ export function PlannerEditor({ onNavigate, dbRole, programId }: PlannerEditorPr
     setMessage(null);
 
     try {
-      // Upsert into weekly_plans with conflict handling on UNIQUE (group_id, day_code, week_number)
-      const { error } = await supabase
-        .from('weekly_plans')
-        .upsert({
-          program_id: selectedProgramId,
-          group_id: selectedGroupId,
-          week_number: weekNumber,
-          day_code: selectedDay,
-          title: sessionTitle || 'SESIÓN SIN TÍTULO',
-          exercises: blocks,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'group_id,day_code,week_number'
-        });
-
-      if (error) {
-        throw error;
-      }
+      // Composite ID to ensure uniqueness (replaces Supabase upsert conflict on group_id,day_code,week_number)
+      const planId = `${selectedProgramId}_${selectedGroupId}_${weekNumber}_${selectedDay}`;
+      const planRef = doc(db, 'weekly_plans', planId);
+      await setDoc(planRef, {
+        program_id: selectedProgramId,
+        group_id: selectedGroupId,
+        week_number: weekNumber,
+        day_code: selectedDay,
+        title: sessionTitle || 'SESIÓN SIN TÍTULO',
+        exercises: blocks,
+        updated_at: new Date().toISOString(),
+      });
 
       setMessage({ type: 'success', text: '¡PLANIFICACIÓN GUARDADA CON ÉXITO!' });
-      // Clear message after 4 seconds
       setTimeout(() => setMessage(null), 4000);
     } catch (err: any) {
       console.error('Error saving weekly plan:', err);

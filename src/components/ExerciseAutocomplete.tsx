@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, limit, getDocs, addDoc } from 'firebase/firestore';
 import { Search, Plus, Check, X, Loader2 } from 'lucide-react';
 
 interface ExerciseAutocompleteProps {
@@ -68,20 +69,19 @@ export function ExerciseAutocomplete({ value, onChange, placeholder = 'BUSCAR EJ
       setIsOpen(true);
 
       try {
-        const { data, error } = await supabase
-          .from('exercises')
-          .select('id, name, category')
-          .ilike('name', `%${trimmedActivePart}%`)
-          .limit(10);
-
-        if (error) {
-          console.error('Error fetching exercises:', error);
-          setResults([]);
-        } else {
-          setResults(data || []);
-        }
+        const snap = await getDocs(
+          query(
+            collection(db, 'exercises'),
+            where('name', '>=', trimmedActivePart.toUpperCase()),
+            where('name', '<=', trimmedActivePart.toUpperCase() + '\uf8ff'),
+            orderBy('name'),
+            limit(10)
+          )
+        );
+        setResults(snap.docs.map(d => ({ id: d.id, name: d.data().name, category: d.data().category })));
       } catch (err) {
         console.error('Unexpected error:', err);
+        setResults([]);
       } finally {
         setIsLoading(false);
       }
@@ -120,24 +120,13 @@ export function ExerciseAutocomplete({ value, onChange, placeholder = 'BUSCAR EJ
     try {
       const formattedName = newExerciseName.trim().toUpperCase();
 
-      // Insert the new exercise into the 'exercises' table in Supabase
-      const { data, error } = await supabase
-        .from('exercises')
-        .insert([
-          {
-            name: formattedName,
-            category: newExerciseCategory,
-            equipment_type: newExerciseEquipment
-          }
-        ])
-        .select();
-
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error('EL EJERCICIO YA EXISTE EN LA BASE DE DATOS.');
-        }
-        throw error;
-      }
+      // Insert the new exercise into the 'exercises' collection in Firestore
+      await addDoc(collection(db, 'exercises'), {
+        name: formattedName,
+        category: newExerciseCategory,
+        equipment_type: newExerciseEquipment,
+        created_at: new Date().toISOString(),
+      });
 
       // Automatically select the newly created exercise
       handleSelect(formattedName);
