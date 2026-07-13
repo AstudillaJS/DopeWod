@@ -4,6 +4,7 @@ import { User, LogOut, ArrowLeft, Mail, Shield, Target } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { Skeleton } from '../components/Skeleton';
 
 interface ProfileConfigProps {
   onNavigate: (screen: Screen) => void;
@@ -61,8 +62,8 @@ export function ProfileConfig({ onNavigate, role }: ProfileConfigProps) {
                <User size={40} className="text-primary-cyan" />
             </div>
             <div>
-               <h1 className="font-headline text-3xl sm:text-5xl font-black text-white italic tracking-tighter uppercase mb-2">
-                 {loading ? 'CARGANDO...' : profile?.full_name || 'USUARIO'}
+               <h1 className="font-headline text-3xl sm:text-5xl font-black text-white italic tracking-tighter uppercase mb-2 flex items-center h-[1em]">
+                 {loading ? <Skeleton className="h-[0.8em] w-64 bg-white/20" /> : profile?.full_name || 'USUARIO'}
                </h1>
                <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1">
                  <Shield size={12} className="text-primary-cyan" />
@@ -87,7 +88,9 @@ export function ProfileConfig({ onNavigate, role }: ProfileConfigProps) {
                  <Shield size={14} />
                  <span className="font-headline text-[10px] tracking-[0.2em] font-black uppercase">Documento de Identidad (DNI)</span>
                </div>
-               <p className="text-white font-medium text-sm sm:text-base">{loading ? '...' : profile?.dni || 'NO REGISTRADO'}</p>
+               <p className="text-white font-medium text-sm sm:text-base flex items-center h-[1.5em]">
+                 {loading ? <Skeleton className="h-[1em] w-32" /> : profile?.dni || 'NO REGISTRADO'}
+               </p>
             </div>
 
             <div className="border-l-2 border-primary-cyan pl-4 sm:pl-6 bg-primary-cyan/5 py-4 pr-4">
@@ -95,8 +98,8 @@ export function ProfileConfig({ onNavigate, role }: ProfileConfigProps) {
                  <Target size={14} />
                  <span className="font-headline text-[10px] tracking-[0.2em] font-black uppercase">Programa Asignado</span>
                </div>
-               <p className="text-white font-medium text-sm sm:text-base font-headline italic tracking-wide">
-                 {loading ? '...' : (programName || 'SIN ASIGNAR')}
+               <p className="text-white font-medium text-sm sm:text-base font-headline italic tracking-wide flex items-center h-[1.5em]">
+                 {loading ? <Skeleton className="h-[1em] w-48" /> : (programName || 'SIN ASIGNAR')}
                </p>
             </div>
          </div>

@@ -1,7 +1,7 @@
 import { type Screen, type PRRecord } from '../App';
-import { ArrowLeft, Bolt, Calculator, Clock, Terminal, RotateCcw, Info } from 'lucide-react';
+import { ArrowLeft, Bolt, Calculator, Clock, Terminal, RotateCcw, Info, Play, Pause, Square, CheckCircle2, Circle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState, useEffect } from 'react';
 
 interface ProtocolDetailProps {
   onNavigate: (screen: Screen) => void;
@@ -10,6 +10,26 @@ interface ProtocolDetailProps {
 
 export function ProtocolDetail({ onNavigate, prs }: ProtocolDetailProps) {
   const snatchPR = prs.find(p => p.exercise.includes('SNATCH'))?.weight || 100;
+  
+  // Timer State
+  const [time, setTime] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRunning) {
+      interval = setInterval(() => {
+        setTime((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const formatTime = (totalSeconds: number) => {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
   
   return (
     <div className="px-4 sm:px-6 md:px-12 py-6 sm:py-12 max-w-[1400px] mx-auto space-y-8 sm:space-y-16">
@@ -39,6 +59,27 @@ export function ProtocolDetail({ onNavigate, prs }: ProtocolDetailProps) {
           </div>
         </div>
       </section>
+
+      {/* Floating Timer */}
+      <div className="fixed bottom-6 right-6 sm:bottom-12 sm:right-12 bg-black border-2 border-primary-cyan p-4 sm:p-6 z-50 flex items-center gap-4 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+         <div className="font-headline text-3xl sm:text-5xl font-black text-white italic tracking-tighter w-[120px] sm:w-[160px] text-center">
+            {formatTime(time)}
+         </div>
+         <div className="flex flex-col gap-2 border-l border-white/20 pl-4">
+            <button 
+              onClick={() => setIsRunning(!isRunning)}
+              className={cn("p-2 sm:p-3 transition-colors border", isRunning ? "bg-primary-cyan text-black border-primary-cyan" : "bg-white/10 text-white hover:bg-white/20 border-white/10")}
+            >
+              {isRunning ? <Pause size={20} className="sm:w-6 sm:h-6" /> : <Play size={20} className="sm:w-6 sm:h-6" />}
+            </button>
+            <button 
+              onClick={() => { setIsRunning(false); setTime(0); }}
+              className="p-2 sm:p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors border border-red-500/20"
+            >
+              <RotateCcw size={20} className="sm:w-6 sm:h-6" />
+            </button>
+         </div>
+      </div>
 
       {/* Main Content Sections A-D */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-12 items-start">
@@ -166,16 +207,28 @@ export function ProtocolDetail({ onNavigate, prs }: ProtocolDetailProps) {
 }
 
 function ProtocolSection({ letter, title, type, children }: { letter: string; title: string; type: string; children: ReactNode }) {
+  const [completed, setCompleted] = useState(false);
+
   return (
-    <div className="relative p-6 sm:p-10 lg:p-12 bg-[#051224] transition-colors group">
+    <div className={cn("relative p-6 sm:p-10 lg:p-12 transition-colors group", completed ? "bg-[#0a1f10] opacity-80" : "bg-[#051224]")}>
        <div className="absolute top-6 sm:top-10 right-8 sm:right-12 font-headline text-[80px] sm:text-[120px] lg:text-[140px] font-black opacity-[0.03] italic pointer-events-none group-hover:opacity-10 transition-opacity leading-none select-none text-primary-cyan">
          {letter}
        </div>
        <div className="mb-6 sm:mb-10 flex flex-col gap-1 sm:gap-2">
           <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.4em] text-primary-cyan opacity-40 italic">{type}</span>
-          <h3 className="font-headline text-2xl sm:text-4xl lg:text-5xl font-black text-white italic uppercase tracking-tighter leading-none break-words">{title}</h3>
+          <div className="flex items-start justify-between gap-4">
+            <h3 className={cn("font-headline text-2xl sm:text-4xl lg:text-5xl font-black italic uppercase tracking-tighter leading-none break-words", completed ? "text-green-500 line-through" : "text-white")}>{title}</h3>
+            <button 
+              onClick={() => setCompleted(!completed)}
+              className={cn("p-2 sm:p-4 rounded-full transition-all border shrink-0", completed ? "bg-green-500 text-black border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]" : "bg-black/40 text-white/40 border-white/10 hover:border-primary-cyan hover:text-primary-cyan")}
+            >
+              {completed ? <CheckCircle2 size={24} className="sm:w-8 sm:h-8" /> : <Circle size={24} className="sm:w-8 sm:h-8" />}
+            </button>
+          </div>
        </div>
-       {children}
+       <div className={cn("transition-opacity", completed ? "opacity-40 pointer-events-none" : "opacity-100")}>
+         {children}
+       </div>
     </div>
   );
 }

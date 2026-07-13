@@ -3,6 +3,7 @@ import { Dumbbell, Plus, X, Calendar, Activity, Weight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import React, { useState } from 'react';
 import { ExerciseAutocomplete } from '../components/ExerciseAutocomplete';
+import confetti from 'canvas-confetti';
 
 interface PRsProps {
   onNavigate: (screen: Screen) => void;
@@ -28,6 +29,14 @@ export function PRs({ onNavigate, prs, onAddPR }: PRsProps) {
       date: formData.date
     });
     
+    // Trigger celebration confetti
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#00FFFF', '#FFFFFF', '#FF4500'] // Cyan, White, Orange
+    });
+
     setIsRecording(false);
     setFormData({ exercise: '', weight: '', date: new Date().toISOString().split('T')[0] });
   };

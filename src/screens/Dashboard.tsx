@@ -1,5 +1,5 @@
 import { type Screen, type UserRole } from '../App';
-import { Timer, ArrowRight, TrendingUp, Calendar as CalendarIcon } from 'lucide-react';
+import { Timer, ArrowRight, TrendingUp, Calendar as CalendarIcon, Flame } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useState } from 'react';
 
@@ -121,9 +121,18 @@ export function Dashboard({ onNavigate, role, userName = 'USUARIO', hasPlanning 
            </div>
            
            <div className="relative z-10 transition-all duration-300">
-              <p className="font-headline font-black text-xs tracking-[0.2em] text-primary-cyan uppercase mb-4 sm:mb-6 underline underline-offset-8">
-                {currentWorkout.tag}
-              </p>
+              <div className="flex items-center gap-4 mb-4 sm:mb-6">
+                <p className="font-headline font-black text-xs tracking-[0.2em] text-primary-cyan uppercase underline underline-offset-8">
+                  {currentWorkout.tag}
+                </p>
+                {/* Gamification Streak Widget */}
+                <div className="flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-3 py-1 rounded-full shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+                   <Flame size={14} className="text-orange-500" />
+                   <span className="font-headline font-black text-[9px] tracking-widest uppercase text-orange-500">
+                      RACHA: 3 DÍAS 🔥
+                   </span>
+                </div>
+              </div>
               <h2 className="font-headline text-3xl sm:text-5xl md:text-7xl font-black text-white uppercase italic leading-none tracking-tighter mb-4">
                 {currentWorkout.title}
               </h2>
